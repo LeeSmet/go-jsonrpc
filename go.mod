@@ -1,8 +1,9 @@
-module github.com/filecoin-project/go-jsonrpc
+module github.com/LeeSmet/go-jsonrpc
 
 go 1.18
 
 require (
+	github.com/filecoin-project/go-jsonrpc v0.2.3
 	github.com/google/uuid v1.1.1
 	github.com/gorilla/mux v1.7.4
 	github.com/gorilla/websocket v1.4.2
