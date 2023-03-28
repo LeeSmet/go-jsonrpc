@@ -79,8 +79,10 @@ func (s *RPCServer) handleWS(ctx context.Context, w http.ResponseWriter, r *http
 		}
 	}
 
-	lbl := pprof.Labels("jrpc-mode", "wsserver", "jrpc-remote", r.RemoteAddr, "jrpc-uuid", uuid.New().String())
+	conUUID := uuid.New().String()
+	lbl := pprof.Labels("jrpc-mode", "wsserver", "jrpc-remote", r.RemoteAddr, "jrpc-uuid", conUUID)
 	pprof.Do(ctx, lbl, func(ctx context.Context) {
+		ctx = context.WithValue(ctx, "conUUID", conUUID)
 		wc.handleWsConn(ctx)
 	})
 
