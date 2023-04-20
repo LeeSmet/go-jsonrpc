@@ -43,6 +43,7 @@ type methodHandler struct {
 	handlerFunc reflect.Value
 
 	hasCtx       int
+	hasState     int
 	hasRawParams bool
 
 	errOut int
@@ -150,17 +151,22 @@ func (s *handler) register(namespace string, r interface{}) {
 			hasCtx = 1
 		}
 
+		hasState := 0
+		if funcType.NumIn() >= 3 && hasCtx == 1 && funcType.In(2) == stateType {
+			hasState = 1
+		}
+
 		hasRawParams := false
-		ins := funcType.NumIn() - 1 - hasCtx
+		ins := funcType.NumIn() - 1 - hasCtx - hasState
 		recvs := make([]reflect.Type, ins)
 		for i := 0; i < ins; i++ {
 			if hasRawParams && i > 0 {
 				panic("raw params must be the last parameter")
 			}
-			if funcType.In(i+1+hasCtx) == rtRawParams {
+			if funcType.In(i+1+hasCtx+hasState) == rtRawParams {
 				hasRawParams = true
 			}
-			recvs[i] = method.Type.In(i + 1 + hasCtx)
+			recvs[i] = method.Type.In(i + 1 + hasCtx + hasState)
 		}
 
 		valOut, errOut, _ := processFuncOut(funcType)
@@ -173,6 +179,7 @@ func (s *handler) register(namespace string, r interface{}) {
 			receiver:    val,
 
 			hasCtx:       hasCtx,
+			hasState:     hasState,
 			hasRawParams: hasRawParams,
 
 			errOut: errOut,
@@ -186,7 +193,7 @@ func (s *handler) register(namespace string, r interface{}) {
 type rpcErrFunc func(w func(func(io.Writer)), req *request, code ErrorCode, err error)
 type chanOut func(reflect.Value, interface{}) error
 
-func (s *handler) handleReader(ctx context.Context, r io.Reader, w io.Writer, rpcError rpcErrFunc) {
+func (s *handler) handleReader(ctx context.Context, state map[struct{}]any, r io.Reader, w io.Writer, rpcError rpcErrFunc) {
 	wf := func(cb func(io.Writer)) {
 		cb(w)
 	}
@@ -228,7 +235,7 @@ func (s *handler) handleReader(ctx context.Context, r io.Reader, w io.Writer, rp
 		return
 	}
 
-	s.handle(ctx, req, wf, rpcError, func(bool) {}, nil)
+	s.handle(ctx, state, req, wf, rpcError, func(bool) {}, nil)
 }
 
 func doCall(methodName string, f reflect.Value, params []reflect.Value) (out []reflect.Value, err error) {
@@ -294,7 +301,7 @@ func (s *handler) createError(err error) *respError {
 	return out
 }
 
-func (s *handler) handle(ctx context.Context, req request, w func(func(io.Writer)), rpcError rpcErrFunc, done func(keepCtx bool), chOut chanOut) {
+func (s *handler) handle(ctx context.Context, state map[struct{}]any, req request, w func(func(io.Writer)), rpcError rpcErrFunc, done func(keepCtx bool), chOut chanOut) {
 	// Not sure if we need to sanitize the incoming req.Method or not.
 	ctx, span := s.getSpan(ctx, req)
 	ctx, _ = tag.New(ctx, tag.Insert(metrics.RPCMethod, req.Method))
@@ -323,17 +330,22 @@ func (s *handler) handle(ctx context.Context, req request, w func(func(io.Writer
 		return
 	}
 
-	callParams := make([]reflect.Value, 1+handler.hasCtx+handler.nParams)
+	callParams := make([]reflect.Value, 1+handler.hasCtx+handler.hasState+handler.nParams)
 	callParams[0] = handler.receiver
 	if handler.hasCtx == 1 {
 		callParams[1] = reflect.ValueOf(ctx)
+	}
+
+	if handler.hasState == 1 {
+		// previously we declared that state is only injected if we have a ctx argument as well, so MUST be at position 2
+		callParams[2] = reflect.ValueOf(state)
 	}
 
 	if handler.hasRawParams {
 		// When hasRawParams is true, there is only one parameter and it is a
 		// json.RawMessage.
 
-		callParams[1+handler.hasCtx] = reflect.ValueOf(RawParams(req.Params))
+		callParams[1+handler.hasCtx+handler.hasState] = reflect.ValueOf(RawParams(req.Params))
 	} else {
 		// "normal" param list; no good way to do named params in Golang
 
@@ -377,7 +389,7 @@ func (s *handler) handle(ctx context.Context, req request, w func(func(io.Writer
 				}
 			}
 
-			callParams[i+1+handler.hasCtx] = reflect.ValueOf(rp.Interface())
+			callParams[i+1+handler.hasCtx+handler.hasState] = reflect.ValueOf(rp.Interface())
 		}
 	}
 

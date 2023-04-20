@@ -46,7 +46,7 @@ type outChanReg struct {
 }
 
 type reqestHandler interface {
-	handle(ctx context.Context, req request, w func(func(io.Writer)), rpcError rpcErrFunc, done func(keepCtx bool), chOut chanOut)
+	handle(ctx context.Context, state map[struct{}]any, req request, w func(func(io.Writer)), rpcError rpcErrFunc, done func(keepCtx bool), chOut chanOut)
 }
 
 type wsConn struct {
@@ -433,7 +433,7 @@ func (c *wsConn) handleResponse(frame frame) {
 	c.inflightLk.Unlock()
 }
 
-func (c *wsConn) handleCall(ctx context.Context, frame frame) {
+func (c *wsConn) handleCall(ctx context.Context, state map[struct{}]any, frame frame) {
 	if c.handler == nil {
 		log.Error("handleCall on client with no reverse handler")
 		return
@@ -475,11 +475,11 @@ func (c *wsConn) handleCall(ctx context.Context, frame frame) {
 		}
 	}
 
-	go c.handler.handle(ctx, req, nextWriter, rpcError, done, c.handleChanOut)
+	go c.handler.handle(ctx, state, req, nextWriter, rpcError, done, c.handleChanOut)
 }
 
 // handleFrame handles all incoming messages (calls and responses)
-func (c *wsConn) handleFrame(ctx context.Context, frame frame) {
+func (c *wsConn) handleFrame(ctx context.Context, state map[struct{}]any, frame frame) {
 	// Get message type by method name:
 	// "" - response
 	// "xrpc.*" - builtin
@@ -494,7 +494,7 @@ func (c *wsConn) handleFrame(ctx context.Context, frame frame) {
 	case chClose:
 		c.handleChanClose(frame)
 	default: // Remote call
-		c.handleCall(ctx, frame)
+		c.handleCall(ctx, state, frame)
 	}
 }
 
@@ -642,7 +642,7 @@ func (c *wsConn) readFrame(ctx context.Context, r io.Reader) {
 	go c.nextMessage()
 }
 
-func (c *wsConn) frameExecutor(ctx context.Context) {
+func (c *wsConn) frameExecutor(ctx context.Context, state map[struct{}]any) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -663,14 +663,14 @@ func (c *wsConn) frameExecutor(ctx context.Context) {
 				continue
 			}
 
-			c.handleFrame(ctx, frame)
+			c.handleFrame(ctx, state, frame)
 		}
 	}
 }
 
 var maxQueuedFrames = 256
 
-func (c *wsConn) handleWsConn(ctx context.Context) {
+func (c *wsConn) handleWsConn(ctx context.Context, state map[struct{}]any) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -704,7 +704,7 @@ func (c *wsConn) handleWsConn(ctx context.Context) {
 	}
 
 	// start frame executor
-	go c.frameExecutor(ctx)
+	go c.frameExecutor(ctx, state)
 
 	// wait for the first message
 	go c.nextMessage()

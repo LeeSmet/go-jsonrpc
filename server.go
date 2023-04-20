@@ -48,7 +48,7 @@ var upgrader = websocket.Upgrader{
 	},
 }
 
-func (s *RPCServer) handleWS(ctx context.Context, w http.ResponseWriter, r *http.Request) {
+func (s *RPCServer) handleWS(ctx context.Context, state map[struct{}]any, w http.ResponseWriter, r *http.Request) {
 	// TODO: allow setting
 	// (note that we still are mostly covered by jwt tokens)
 	w.Header().Set("Access-Control-Allow-Origin", "*")
@@ -83,7 +83,7 @@ func (s *RPCServer) handleWS(ctx context.Context, w http.ResponseWriter, r *http
 	lbl := pprof.Labels("jrpc-mode", "wsserver", "jrpc-remote", r.RemoteAddr, "jrpc-uuid", conUUID)
 	pprof.Do(ctx, lbl, func(ctx context.Context) {
 		ctx = context.WithValue(ctx, "conUUID", conUUID)
-		wc.handleWsConn(ctx)
+		wc.handleWsConn(ctx, state)
 	})
 
 	if err := c.Close(); err != nil {
@@ -95,14 +95,15 @@ func (s *RPCServer) handleWS(ctx context.Context, w http.ResponseWriter, r *http
 // TODO: return errors to clients per spec
 func (s *RPCServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	state := make(map[struct{}]any)
 
 	h := strings.ToLower(r.Header.Get("Connection"))
 	if strings.Contains(h, "upgrade") {
-		s.handleWS(ctx, w, r)
+		s.handleWS(ctx, state, w, r)
 		return
 	}
 
-	s.handleReader(ctx, r.Body, w, rpcError)
+	s.handleReader(ctx, state, r.Body, w, rpcError)
 }
 
 func rpcError(wf func(func(io.Writer)), req *request, code ErrorCode, err error) {

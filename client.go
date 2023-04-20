@@ -31,6 +31,7 @@ const (
 var (
 	errorType   = reflect.TypeOf(new(error)).Elem()
 	contextType = reflect.TypeOf(new(context.Context)).Elem()
+	stateType   = reflect.TypeOf(new(map[struct{}]any))
 
 	log = logging.Logger("rpc")
 
@@ -253,9 +254,10 @@ func websocketClient(ctx context.Context, addr string, namespace string, outs []
 	}
 
 	go func() {
+		state := make(map[struct{}]any)
 		lbl := pprof.Labels("jrpc-mode", "wsclient", "jrpc-remote", addr, "jrpc-local", conn.LocalAddr().String(), "jrpc-uuid", uuid.New().String())
 		pprof.Do(ctx, lbl, func(ctx context.Context) {
-			wconn.handleWsConn(ctx)
+			wconn.handleWsConn(ctx, state)
 		})
 	}()
 
