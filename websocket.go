@@ -46,7 +46,7 @@ type outChanReg struct {
 }
 
 type reqestHandler interface {
-	handle(ctx context.Context, state map[struct{}]any, req request, w func(func(io.Writer)), rpcError rpcErrFunc, done func(keepCtx bool), chOut chanOut)
+	handle(ctx context.Context, state map[string]any, req request, w func(func(io.Writer)), rpcError rpcErrFunc, done func(keepCtx bool), chOut chanOut)
 }
 
 type wsConn struct {
@@ -433,7 +433,7 @@ func (c *wsConn) handleResponse(frame frame) {
 	c.inflightLk.Unlock()
 }
 
-func (c *wsConn) handleCall(ctx context.Context, state map[struct{}]any, frame frame) {
+func (c *wsConn) handleCall(ctx context.Context, state map[string]any, frame frame) {
 	if c.handler == nil {
 		log.Error("handleCall on client with no reverse handler")
 		return
@@ -479,7 +479,7 @@ func (c *wsConn) handleCall(ctx context.Context, state map[struct{}]any, frame f
 }
 
 // handleFrame handles all incoming messages (calls and responses)
-func (c *wsConn) handleFrame(ctx context.Context, state map[struct{}]any, frame frame) {
+func (c *wsConn) handleFrame(ctx context.Context, state map[string]any, frame frame) {
 	// Get message type by method name:
 	// "" - response
 	// "xrpc.*" - builtin
@@ -642,7 +642,7 @@ func (c *wsConn) readFrame(ctx context.Context, r io.Reader) {
 	go c.nextMessage()
 }
 
-func (c *wsConn) frameExecutor(ctx context.Context, state map[struct{}]any) {
+func (c *wsConn) frameExecutor(ctx context.Context, state map[string]any) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -670,7 +670,7 @@ func (c *wsConn) frameExecutor(ctx context.Context, state map[struct{}]any) {
 
 var maxQueuedFrames = 256
 
-func (c *wsConn) handleWsConn(ctx context.Context, state map[struct{}]any) {
+func (c *wsConn) handleWsConn(ctx context.Context, state map[string]any) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 

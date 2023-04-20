@@ -193,7 +193,7 @@ func (s *handler) register(namespace string, r interface{}) {
 type rpcErrFunc func(w func(func(io.Writer)), req *request, code ErrorCode, err error)
 type chanOut func(reflect.Value, interface{}) error
 
-func (s *handler) handleReader(ctx context.Context, state map[struct{}]any, r io.Reader, w io.Writer, rpcError rpcErrFunc) {
+func (s *handler) handleReader(ctx context.Context, state map[string]any, r io.Reader, w io.Writer, rpcError rpcErrFunc) {
 	wf := func(cb func(io.Writer)) {
 		cb(w)
 	}
@@ -301,7 +301,7 @@ func (s *handler) createError(err error) *respError {
 	return out
 }
 
-func (s *handler) handle(ctx context.Context, state map[struct{}]any, req request, w func(func(io.Writer)), rpcError rpcErrFunc, done func(keepCtx bool), chOut chanOut) {
+func (s *handler) handle(ctx context.Context, state map[string]any, req request, w func(func(io.Writer)), rpcError rpcErrFunc, done func(keepCtx bool), chOut chanOut) {
 	// Not sure if we need to sanitize the incoming req.Method or not.
 	ctx, span := s.getSpan(ctx, req)
 	ctx, _ = tag.New(ctx, tag.Insert(metrics.RPCMethod, req.Method))
