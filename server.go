@@ -96,6 +96,11 @@ func (s *RPCServer) handleWS(ctx context.Context, state State, w http.ResponseWr
 func (s *RPCServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	state := make(State)
+	defer func() {
+		for _, s := range state {
+			s.Close()
+		}
+	}()
 
 	h := strings.ToLower(r.Header.Get("Connection"))
 	if strings.Contains(h, "upgrade") {
