@@ -15,7 +15,7 @@ import (
 	logging "github.com/ipfs/go-log/v2"
 	"golang.org/x/xerrors"
 
-	"github.com/filecoin-project/go-jsonrpc"
+	"github.com/LeeSmet/go-jsonrpc"
 )
 
 var log = logging.Logger("rpc")
