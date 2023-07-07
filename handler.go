@@ -451,6 +451,10 @@ func (s *handler) handle(ctx context.Context, state State, req request, w func(f
 				Message: err.Error(),
 			}
 		} else {
+			// Make sure a `result` is set even if there is no actual value, this is required per the spec
+			if res == nil {
+				res = struct{}{}
+			}
 			resp.Result = res
 		}
 	}
